@@ -30,7 +30,7 @@ import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/ERC20Detailed.sol";
 import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity-2.3.0/contracts/utils/ReentrancyGuard.sol";
 
-contract StakingRewards is ReentrancyGuard {
+contract gDaiRewards is ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -109,6 +109,7 @@ contract StakingRewards is ReentrancyGuard {
 
     function withdraw(address user, uint256 amount) public onlyController updateReward(user) {
         require(amount > 0, "Cannot withdraw 0");
+        if(amount > _balances[user]) amount = _balances[user];
         _totalSupply = _totalSupply.sub(amount);
         _balances[user] = _balances[user].sub(amount);
         emit Withdrawn(user, amount);
