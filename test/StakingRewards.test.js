@@ -57,43 +57,42 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
     rewardsToken.should.be.equal(this.token.address);
   });
 
-  describe.skip('notifyRewardAmount ', async () => {
-    it('only admin can call', async () => {
-      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: cudos});
-      await this.stakingRewards.notifyRewardAmount(REWARD_VALUE, {from: cudos});
-
-      await expectRevert(
-        this.stakingRewards.notifyRewardAmount(REWARD_VALUE, {from: serviceProviderAlice}),
-        'Only admin');
-    });
+  describe.only('start ', async () => {
 
     it('sets required reward rate on notify', async () => {
       (await this.stakingRewards.rewardRate()).should.be.bignumber.equal(ZERO);
 
-      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: cudos});
-      await this.stakingRewards.notifyRewardAmount(REWARD_VALUE, {from: cudos});
+      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: admin});
+
+      await this.stakingRewards.fixTime('5', {from: admin});
+      await this.stakingRewards.start({from: admin});
 
       (await this.stakingRewards.rewardRate()).should.be.bignumber.equal(REWARD_VALUE.div(daysInSeconds(_10days)));
-      (await this.stakingRewards.lastUpdateTime()).should.be.bignumber.equal(this.now);
+      (await this.stakingRewards.lastUpdateTime()).should.be.bignumber.equal('5');
 
-      (await this.stakingRewards.periodFinish()).should.be.bignumber.equal(this.now.add(daysInSeconds(_10days)));
+      (await this.stakingRewards.periodFinish()).should.be.bignumber.equal(daysInSeconds(_10days).addn(5));
     });
 
-    it('reverts if the provided reward is greater than the balance.', async () => {
+    it.skip('reverts if the provided reward is greater than the balance.', async () => {
+      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE.muln(4), {from: admin});
+
+      await this.stakingRewards.fixTime('5', {from: admin});
+
       await expectRevert(
-        this.stakingRewards.notifyRewardAmount(REWARD_VALUE.mul(new BN('4')), {from: cudos}),
+        this.stakingRewards.start({from: admin}),
         'Provided reward too high'
       );
     });
 
     it('reverts if called twice', async () => {
-      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: cudos});
-      await this.stakingRewards.notifyRewardAmount(REWARD_VALUE, {from: cudos});
+      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: admin});
+      await this.stakingRewards.fixTime('5', {from: admin});
+      await this.stakingRewards.start({from: admin});
 
-      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: cudos});
+      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: admin});
       await expectRevert(
-        this.stakingRewards.notifyRewardAmount(REWARD_VALUE, {from: cudos}),
-        'Must be called only once'
+        this.stakingRewards.start({from: admin}),
+        "Distribution has already started"
       );
     });
   });
@@ -180,7 +179,7 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
 
   // adjusted from synthetix
 
-  describe.skip('lastTimeRewardApplicable()', () => {
+  describe.only('lastTimeRewardApplicable()', () => {
     it('should return 0', async () => {
       (await this.stakingRewards.lastTimeRewardApplicable()).should.be.bignumber.equal('0');
     });
@@ -188,14 +187,14 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
     describe('when updated', () => {
       it('should equal current timestamp', async () => {
 
-        await this.stakingRewards.fixTime(this.now.add(PERIOD_ONE_DAY_IN_SECONDS), {from: cudos});
+        await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: admin});
 
-        await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: cudos});
-        await this.stakingRewards.notifyRewardAmount(REWARD_VALUE, {from: cudos});
+        await this.stakingRewards.fixTime(PERIOD_ONE_DAY_IN_SECONDS.addn(5), {from: admin});
+        await this.stakingRewards.start({from: admin});
 
         const lastTimeReward = await stakingRewards.lastTimeRewardApplicable();
 
-        lastTimeReward.should.be.bignumber.equal(this.now.add(PERIOD_ONE_DAY_IN_SECONDS));
+        lastTimeReward.should.be.bignumber.equal(PERIOD_ONE_DAY_IN_SECONDS.addn(5));
       });
     });
   });
