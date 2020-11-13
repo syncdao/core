@@ -134,42 +134,6 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
     });
   });
 
-  describe.skip('stake and exit', async () => {
-    beforeEach(async () => {
-      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: cudos});
-      await this.stakingRewards.notifyRewardAmount(REWARD_VALUE, {from: cudos});
-
-      // set up Alice SP
-      await this.token.transfer(serviceProviderAlice, STAKE_VALUE, {from: cudos});
-      await this.token.approve(this.stakingRewards.address, STAKE_VALUE, {from: serviceProviderAlice});
-    });
-
-    it('can stake and get rewards as a service provider', async () => {
-      (await this.token.balanceOf(serviceProviderAlice)).should.be.bignumber.equal(STAKE_VALUE);
-
-      await this.stakingRewards.stake(STAKE_VALUE, {from: serviceProviderAlice});
-
-      (await this.token.balanceOf(serviceProviderAlice)).should.be.bignumber.equal(ZERO);
-      (await this.stakingRewards.balanceOf(serviceProviderAlice)).should.be.bignumber.equal(STAKE_VALUE);
-
-      (await this.stakingRewards.totalSupply()).should.be.bignumber.equal(STAKE_VALUE);
-
-      await this.stakingRewards.fixTime(this.now.add(PERIOD_ONE_DAY_IN_SECONDS), {from: cudos});
-
-      await this.stakingRewards.exit({from: serviceProviderAlice});
-
-      (await this.stakingRewards.totalSupply()).should.be.bignumber.equal(ZERO);
-      (await this.stakingRewards.balanceOf(serviceProviderAlice)).should.be.bignumber.equal(ZERO);
-
-      // 1000 reward for 10 days is 100 per day
-      // 1 days has passed with one staker - so they are due 100 cudos tokens after exit which claims reward
-      shouldBeNumberInEtherCloseTo(
-        (await this.token.balanceOf(serviceProviderAlice)),
-        new BN(fromWei(STAKE_VALUE)).add(new BN(fromWei(_1DaysWorthOfReward)))
-      );
-    });
-  });
-
   describe.only('stake and withdraw then claim rewards', async () => {
     beforeEach(async () => {
       await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: admin});
@@ -244,10 +208,12 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
     });
   });
 
-  describe.skip('getRewardForDuration()', () => {
+  describe.only('getRewardForDuration()', () => {
     it('should increase rewards token balance', async () => {
-      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: cudos});
-      await this.stakingRewards.notifyRewardAmount(REWARD_VALUE, {from: cudos});
+      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: admin});
+
+      await this.stakingRewards.fixTime('5', {from: admin});
+      await this.stakingRewards.start({from: admin});
 
       const rewardForDuration = await this.stakingRewards.getRewardForDuration();
 
