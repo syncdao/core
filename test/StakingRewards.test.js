@@ -236,11 +236,11 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
     });
   });
 
-  describe.skip('getReward()', () => {
+  describe.only('getReward()', () => {
     it('should do nothing if no stake', async () => {
-      (await this.token.balanceOf(serviceProviderAlice)).should.be.bignumber.equal(ZERO);
-      await this.stakingRewards.getReward({from: serviceProviderAlice});
-      (await this.token.balanceOf(serviceProviderAlice)).should.be.bignumber.equal(ZERO);
+      (await this.token.balanceOf(alice)).should.be.bignumber.equal(ZERO);
+      await this.stakingRewards.getReward({from: alice});
+      (await this.token.balanceOf(alice)).should.be.bignumber.equal(ZERO);
     });
   });
 
@@ -259,26 +259,24 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
     });
   });
 
-  describe.skip('rewardPerToken()', () => {
+  describe.only('rewardPerToken()', () => {
     it('should return 0', async () => {
-      (await stakingRewards.rewardPerToken()).should.be.bignumber.equal(ZERO);
+      (await this.stakingRewards.rewardPerToken()).should.be.bignumber.equal(ZERO);
     });
 
     it('should be > 0', async () => {
 
-      // set up Alice SP
-      await this.token.transfer(serviceProviderAlice, STAKE_VALUE, {from: cudos});
-      await this.token.approve(this.stakingRewards.address, STAKE_VALUE, {from: serviceProviderAlice});
-
-      await this.stakingRewards.stake(STAKE_VALUE, {from: serviceProviderAlice});
+      // set up Alice
+      await this.stakingRewards.stake(alice, STAKE_VALUE, {from: stakingController});
 
       const totalSupply = await stakingRewards.totalSupply();
       totalSupply.should.be.bignumber.equal(STAKE_VALUE);
 
-      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: cudos});
-      await this.stakingRewards.notifyRewardAmount(REWARD_VALUE, {from: cudos});
+      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE, {from: admin});
+      await this.stakingRewards.fixTime('5', {from: admin});
+      await this.stakingRewards.start({from: stakingController});
 
-      await this.stakingRewards.fixTime(this.now.add(PERIOD_ONE_DAY_IN_SECONDS), {from: cudos});
+      await this.stakingRewards.fixTime(PERIOD_ONE_DAY_IN_SECONDS.addn(5), {from: admin});
 
       const rewardPerToken = await this.stakingRewards.rewardPerToken();
 
