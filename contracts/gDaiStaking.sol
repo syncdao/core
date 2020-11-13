@@ -30,7 +30,7 @@ import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/ERC20Detailed.sol";
 import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity-2.3.0/contracts/utils/ReentrancyGuard.sol";
 
-contract gDaiRewards is ReentrancyGuard {
+contract gDaiStaking is ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -43,7 +43,7 @@ contract gDaiRewards is ReentrancyGuard {
     uint256 public rewardsDuration;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
-    uint public startDate;
+    uint256 public startDate;
     bool public started = false;
 
     mapping(address => uint256) public userRewardPerTokenPaid;
@@ -57,8 +57,8 @@ contract gDaiRewards is ReentrancyGuard {
     constructor(
         address _rewardsToken,
         address _stakingController,
-        uint _rewardsDurationSeconds,
-        uint _startDate
+        uint256 _rewardsDurationSeconds,
+        uint256 _startDate
     ) public {
         rewardsToken = IERC20(_rewardsToken);
         stakingController = _stakingController;
@@ -77,7 +77,7 @@ contract gDaiRewards is ReentrancyGuard {
     }
 
     function lastTimeRewardApplicable() public view returns (uint256) {
-        return Math.min(block.timestamp, periodFinish);
+        return Math.min(_getNow(), periodFinish);
     }
 
     function rewardPerToken() public view returns (uint256) {
@@ -109,7 +109,8 @@ contract gDaiRewards is ReentrancyGuard {
 
     function withdraw(address user, uint256 amount) public onlyController updateReward(user) {
         require(amount > 0, "Cannot withdraw 0");
-        if(amount > _balances[user]) amount = _balances[user];
+        require(_balances[user] >= amount, "Amount greater than balance");
+
         _totalSupply = _totalSupply.sub(amount);
         _balances[user] = _balances[user].sub(amount);
         emit Withdrawn(user, amount);
@@ -132,9 +133,9 @@ contract gDaiRewards is ReentrancyGuard {
     }
 
     function start() external updateReward(address(0)) {
-        require(block.timestamp >= startDate, "startDate has not yet been reached");
+        require(_getNow() >= startDate, "startDate has not yet been reached");
         require(!started, "Distribution has already started");
-        uint reward = rewardsToken.balanceOf(address(this));
+        uint256 reward = rewardsToken.balanceOf(address(this));
         require(reward > 0, "No tokens were sent for rewards");
         rewardRate = reward.div(rewardsDuration);
 
@@ -144,9 +145,9 @@ contract gDaiRewards is ReentrancyGuard {
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
         require(rewardRate <= reward.div(rewardsDuration), "Provided reward too high");
 
-        lastUpdateTime = block.timestamp;
+        lastUpdateTime = _getNow();
         started = true;
-        periodFinish = block.timestamp.add(rewardsDuration);
+        periodFinish = _getNow().add(rewardsDuration);
         emit Started(reward);
     }
 
@@ -173,4 +174,10 @@ contract gDaiRewards is ReentrancyGuard {
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, uint256 reward);
+
+    /* ========== INTERNALS ========== */
+
+    function _getNow() internal view returns (uint256) {
+        return block.timestamp;
+    }
 }
