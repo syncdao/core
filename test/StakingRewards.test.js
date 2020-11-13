@@ -58,6 +58,60 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
     rewardsToken.should.be.equal(this.token.address);
   });
 
+  describe.only('deploying', () => {
+    it('Reverts when reward token is zero', async () => {
+      await expectRevert(
+        StakingRewards.new(
+          constants.ZERO_ADDRESS,
+          stakingController,
+          _10days.mul(PERIOD_ONE_DAY_IN_SECONDS),
+          '5',
+          {from: admin}
+        ),
+        "_rewardsToken is zero address"
+      );
+    });
+
+    it('Reverts when rewards duration is zero', async () => {
+      await expectRevert(
+        StakingRewards.new(
+          this.token.address,
+          stakingController,
+          0,
+          '5',
+          {from: admin}
+        ),
+        "_rewardsDurationSeconds is zero"
+      );
+    });
+
+    it('Reverts when start is zero', async () => {
+      await expectRevert(
+        StakingRewards.new(
+          this.token.address,
+          stakingController,
+          10,
+          0,
+          {from: admin}
+        ),
+        "_startDate is zero"
+      );
+    });
+
+    it('Reverts when staking rewards is zero', async () => {
+      await expectRevert(
+        StakingRewards.new(
+          this.token.address,
+          constants.ZERO_ADDRESS,
+          _10days.mul(PERIOD_ONE_DAY_IN_SECONDS),
+          '5',
+          {from: admin}
+        ),
+        "_stakingController is zero address"
+      );
+    });
+  });
+
   describe.only('start ', async () => {
 
     it('sets required reward rate on notify', async () => {
@@ -134,6 +188,13 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
       );
     });
 
+    it('reverts if staking for zero address', async () => {
+      await expectRevert(
+        this.stakingRewards.stake(constants.ZERO_ADDRESS, STAKE_VALUE, {from: stakingController}),
+        'User cannot be zero address'
+      );
+    });
+
     it('reverts if not called by the staking controller', async () => {
       await expectRevert(
         this.stakingRewards.stake(alice, ZERO, {from: alice}),
@@ -174,6 +235,13 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
       await expectRevert(
         this.stakingRewards.withdraw(alice, ZERO, {from: stakingController}),
         'Cannot withdraw 0'
+      );
+    });
+
+    it('reverts if staking for zero address', async () => {
+      await expectRevert(
+        this.stakingRewards.withdraw(constants.ZERO_ADDRESS, STAKE_VALUE, {from: stakingController}),
+        'User cannot be zero address'
       );
     });
 
