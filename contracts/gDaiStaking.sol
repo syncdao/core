@@ -38,15 +38,15 @@ contract gDaiStaking is ReentrancyGuard {
 
     IERC20 public rewardsToken;
     address public stakingController;
-    uint256 public periodFinish = 0;
-    uint256 public rewardRate = 0;
+    uint256 public periodFinish;
+    uint256 public rewardRate;
     uint256 public rewardsDuration;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
     uint256 public startDate;
-    bool public started = false;
+    bool public started;
 
-    mapping(address => uint256) public userRewardPerTokenPaid;
+    mapping(address => uint256) public userRewardPerToken;
     mapping(address => uint256) public rewards;
 
     uint256 private _totalSupply;
@@ -60,6 +60,11 @@ contract gDaiStaking is ReentrancyGuard {
         uint256 _rewardsDurationSeconds,
         uint256 _startDate
     ) public {
+        require(_rewardsToken != address(0), "_rewardsToken is zero address");
+        require(_stakingController != address(0), "_stakingController is zero address");
+        require(_rewardsDurationSeconds > 0, "_rewardsDurationSeconds is zero");
+        require(_startDate > 0, "_startDate is zero");
+
         rewardsToken = IERC20(_rewardsToken);
         stakingController = _stakingController;
         rewardsDuration = _rewardsDurationSeconds;
@@ -84,6 +89,11 @@ contract gDaiStaking is ReentrancyGuard {
         if (_totalSupply == 0) {
             return rewardPerTokenStored;
         }
+
+        if (lastTimeRewardApplicable() < lastUpdateTime) {
+            return 0;
+        }
+
         return
             rewardPerTokenStored.add(
                 lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRate).mul(1e18).div(_totalSupply)
@@ -91,7 +101,7 @@ contract gDaiStaking is ReentrancyGuard {
     }
 
     function earned(address account) public view returns (uint256) {
-        return _balances[account].mul(rewardPerToken().sub(userRewardPerTokenPaid[account])).div(1e18).add(rewards[account]);
+        return _balances[account].mul(rewardPerToken().sub(userRewardPerToken[account])).div(1e18).add(rewards[account]);
     }
 
     function getRewardForDuration() external view returns (uint256) {
@@ -102,6 +112,7 @@ contract gDaiStaking is ReentrancyGuard {
 
     function stake(address user, uint256 amount) external onlyController updateReward(user) {
         require(amount > 0, "Cannot stake 0");
+        require(user != address(0), "User cannot be zero address");
         _totalSupply = _totalSupply.add(amount);
         _balances[user] = _balances[user].add(amount);
         emit Staked(user, amount);
@@ -109,6 +120,7 @@ contract gDaiStaking is ReentrancyGuard {
 
     function withdraw(address user, uint256 amount) public onlyController updateReward(user) {
         require(amount > 0, "Cannot withdraw 0");
+        require(user != address(0), "User cannot be zero address");
         require(_balances[user] >= amount, "Amount greater than balance");
 
         _totalSupply = _totalSupply.sub(amount);
@@ -152,7 +164,7 @@ contract gDaiStaking is ReentrancyGuard {
         lastUpdateTime = lastTimeRewardApplicable();
         if (account != address(0)) {
             rewards[account] = earned(account);
-            userRewardPerTokenPaid[account] = rewardPerTokenStored;
+            userRewardPerToken[account] = rewardPerTokenStored;
         }
         _;
     }

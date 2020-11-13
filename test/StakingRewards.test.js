@@ -80,7 +80,7 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
           this.token.address,
           stakingController,
           _10days.mul(PERIOD_ONE_DAY_IN_SECONDS),
-          '0',
+          '5',
           {from: admin}
         );
 
