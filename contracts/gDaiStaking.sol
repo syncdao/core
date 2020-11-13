@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity 0.5.16;
 
 /*
 MIT License
@@ -138,12 +138,6 @@ contract gDaiStaking is ReentrancyGuard {
         uint256 reward = rewardsToken.balanceOf(address(this));
         require(reward > 0, "No tokens were sent for rewards");
         rewardRate = reward.div(rewardsDuration);
-
-        // Ensure the provided reward amount is not more than the balance in the contract.
-        // This keeps the reward rate in the right range, preventing overflows due to
-        // very high values of rewardRate in the earned and rewardsPerToken functions;
-        // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        require(rewardRate <= reward.div(rewardsDuration), "Provided reward too high");
 
         lastUpdateTime = _getNow();
         started = true;

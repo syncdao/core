@@ -5,7 +5,8 @@ const {fromWei} = require('web3-utils');
 
 require('chai').should();
 
-const StakingRewards = artifacts.require('gDaiStakingWithFixedTime');
+const StakingRewardsMock = artifacts.require('gDaiStakingWithFixedTime');
+const StakingRewards = artifacts.require('gDaiStaking');
 const SyncToken = artifacts.require('SyncToken');
 
 contract('gDai Staking', function ([admin, alice, stakingController, bob, other, beneficiary3, ...otherAccounts]) {
@@ -40,7 +41,7 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
 
 
     // Construct new staking contract
-    this.stakingRewards = await StakingRewards.new(
+    this.stakingRewards = await StakingRewardsMock.new(
       this.token.address,
       stakingController,
       _10days.mul(PERIOD_ONE_DAY_IN_SECONDS),
@@ -73,15 +74,20 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
       (await this.stakingRewards.periodFinish()).should.be.bignumber.equal(daysInSeconds(_10days).addn(5));
     });
 
-    it.skip('reverts if the provided reward is greater than the balance.', async () => {
-      await this.token.transfer(this.stakingRewards.address, REWARD_VALUE.muln(4), {from: admin});
+    describe('with real (not mock contract)', () => {
+      it('can start issuing rewards', async () => {
+        const stakingRewards = await StakingRewards.new(
+          this.token.address,
+          stakingController,
+          _10days.mul(PERIOD_ONE_DAY_IN_SECONDS),
+          '0',
+          {from: admin}
+        );
 
-      await this.stakingRewards.fixTime('5', {from: admin});
+        await this.token.transfer(stakingRewards.address, REWARD_VALUE, {from: admin});
 
-      await expectRevert(
-        this.stakingRewards.start({from: admin}),
-        'Provided reward too high'
-      );
+        await stakingRewards.start({from: admin});
+      });
     });
 
     it('reverts if called twice', async () => {
@@ -93,6 +99,22 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
       await expectRevert(
         this.stakingRewards.start({from: admin}),
         "Distribution has already started"
+      );
+    });
+
+    it('reverts if start time is still in the future', async () => {
+      await expectRevert(
+        this.stakingRewards.start({from: admin}),
+        "startDate has not yet been reached"
+      );
+    });
+
+    it('reverts if no tokens sent', async () => {
+      await this.stakingRewards.fixTime('5', {from: admin});
+
+      await expectRevert(
+        this.stakingRewards.start({from: admin}),
+        "No tokens were sent for rewards"
       );
     });
   });
@@ -109,6 +131,13 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
       await expectRevert(
         this.stakingRewards.stake(alice, ZERO, {from: stakingController}),
         'Cannot stake 0'
+      );
+    });
+
+    it('reverts if not called by the staking controller', async () => {
+      await expectRevert(
+        this.stakingRewards.stake(alice, ZERO, {from: alice}),
+        'Only callable by controller'
       );
     });
 
@@ -155,7 +184,14 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
       );
     });
 
-    it('can stake and get rewards as a service provider', async () => {
+    it('reverts if not called by the staking controller', async () => {
+      await expectRevert(
+        this.stakingRewards.withdraw(alice, ZERO, {from: alice}),
+        'Only callable by controller'
+      );
+    });
+
+    it('can stake and get rewards with a single withdrawal', async () => {
       await this.stakingRewards.stake(alice, STAKE_VALUE, {from: stakingController});
 
       (await this.stakingRewards.balanceOf(alice)).should.be.bignumber.equal(STAKE_VALUE);
@@ -164,6 +200,32 @@ contract('gDai Staking', function ([admin, alice, stakingController, bob, other,
       await this.stakingRewards.fixTime(new BN('5').add(PERIOD_ONE_DAY_IN_SECONDS), {from: admin});
 
       await this.stakingRewards.withdraw(alice, STAKE_VALUE, {from: stakingController});
+
+      (await this.stakingRewards.totalSupply()).should.be.bignumber.equal(ZERO);
+      (await this.stakingRewards.balanceOf(alice)).should.be.bignumber.equal(ZERO);
+
+      // 1000 reward for 10 days is 100 per day
+      // 1 days has passed with one staker - so they are due 100 cudos tokens after exit which claims reward
+      shouldBeNumberInEtherCloseTo(
+        (await this.token.balanceOf(alice)),
+        new BN(fromWei(_1DaysWorthOfReward))
+      );
+    });
+
+    it('can stake and get rewards over 2 withdrawals', async () => {
+      await this.stakingRewards.stake(alice, STAKE_VALUE, {from: stakingController});
+
+      (await this.stakingRewards.balanceOf(alice)).should.be.bignumber.equal(STAKE_VALUE);
+      (await this.stakingRewards.totalSupply()).should.be.bignumber.equal(STAKE_VALUE);
+
+      await this.stakingRewards.fixTime(new BN('5').add(PERIOD_ONE_DAY_IN_SECONDS), {from: admin});
+
+      await this.stakingRewards.withdraw(alice, STAKE_VALUE.divn('2'), {from: stakingController});
+
+      (await this.stakingRewards.totalSupply()).should.be.bignumber.equal(STAKE_VALUE.divn('2'));
+      (await this.stakingRewards.balanceOf(alice)).should.be.bignumber.equal(STAKE_VALUE.divn('2'));
+
+      await this.stakingRewards.withdraw(alice, STAKE_VALUE.divn('2'), {from: stakingController});
 
       (await this.stakingRewards.totalSupply()).should.be.bignumber.equal(ZERO);
       (await this.stakingRewards.balanceOf(alice)).should.be.bignumber.equal(ZERO);

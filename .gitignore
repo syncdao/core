@@ -7,3 +7,6 @@ artifacts
 
 *.iml
 .idea/
+
+coverage.json
+coverage/
