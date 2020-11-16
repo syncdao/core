@@ -37,6 +37,8 @@ contract gDaiStaking is ReentrancyGuard {
     /* ========== STATE VARIABLES ========== */
 
     IERC20 public rewardsToken;
+
+    // @dev note: this would be the underlying gDai ERC20 token
     address public stakingController;
     uint256 public periodFinish;
     uint256 public rewardRate;
