@@ -1,5 +1,9 @@
 require('dotenv').config()
 usePlugin("@nomiclabs/buidler-waffle");
+usePlugin('@nomiclabs/buidler-truffle5');
+usePlugin('buidler-gas-reporter');
+usePlugin('solidity-coverage');
+usePlugin('@nomiclabs/buidler-solhint');
 
 const INFURA_PROJECT_ID = process.env.INFURA_PROJECT_ID;
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
@@ -11,6 +15,11 @@ module.exports = {
       enabled: true,
       runs: 200
     }
+  },
+  gasReporter: {
+    currency: 'USD',
+    enabled: (process.env.REPORT_GAS) ? true : false,
+    gasPrice: 50
   },
   networks: {
     mainnet: {

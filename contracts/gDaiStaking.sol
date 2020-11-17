@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity 0.5.16;
 
 /*
 MIT License
@@ -30,23 +30,25 @@ import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/ERC20Detailed.sol";
 import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity-2.3.0/contracts/utils/ReentrancyGuard.sol";
 
-contract gDaiRewards is ReentrancyGuard {
+contract gDaiStaking is ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     /* ========== STATE VARIABLES ========== */
 
     IERC20 public rewardsToken;
+
+    // @dev note: this would be the underlying gDai ERC20 token
     address public stakingController;
-    uint256 public periodFinish = 0;
-    uint256 public rewardRate = 0;
+    uint256 public periodFinish;
+    uint256 public rewardRate;
     uint256 public rewardsDuration;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
-    uint public startDate;
-    bool public started = false;
+    uint256 public startDate;
+    bool public started;
 
-    mapping(address => uint256) public userRewardPerTokenPaid;
+    mapping(address => uint256) public userRewardPerToken;
     mapping(address => uint256) public rewards;
 
     uint256 private _totalSupply;
@@ -57,9 +59,14 @@ contract gDaiRewards is ReentrancyGuard {
     constructor(
         address _rewardsToken,
         address _stakingController,
-        uint _rewardsDurationSeconds,
-        uint _startDate
+        uint256 _rewardsDurationSeconds,
+        uint256 _startDate
     ) public {
+        require(_rewardsToken != address(0), "_rewardsToken is zero address");
+        require(_stakingController != address(0), "_stakingController is zero address");
+        require(_rewardsDurationSeconds > 0, "_rewardsDurationSeconds is zero");
+        require(_startDate > 0, "_startDate is zero");
+
         rewardsToken = IERC20(_rewardsToken);
         stakingController = _stakingController;
         rewardsDuration = _rewardsDurationSeconds;
@@ -77,13 +84,18 @@ contract gDaiRewards is ReentrancyGuard {
     }
 
     function lastTimeRewardApplicable() public view returns (uint256) {
-        return Math.min(block.timestamp, periodFinish);
+        return Math.min(_getNow(), periodFinish);
     }
 
     function rewardPerToken() public view returns (uint256) {
         if (_totalSupply == 0) {
             return rewardPerTokenStored;
         }
+
+        if (lastTimeRewardApplicable() < lastUpdateTime) {
+            return 0;
+        }
+
         return
             rewardPerTokenStored.add(
                 lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRate).mul(1e18).div(_totalSupply)
@@ -91,7 +103,7 @@ contract gDaiRewards is ReentrancyGuard {
     }
 
     function earned(address account) public view returns (uint256) {
-        return _balances[account].mul(rewardPerToken().sub(userRewardPerTokenPaid[account])).div(1e18).add(rewards[account]);
+        return _balances[account].mul(rewardPerToken().sub(userRewardPerToken[account])).div(1e18).add(rewards[account]);
     }
 
     function getRewardForDuration() external view returns (uint256) {
@@ -102,6 +114,7 @@ contract gDaiRewards is ReentrancyGuard {
 
     function stake(address user, uint256 amount) external onlyController updateReward(user) {
         require(amount > 0, "Cannot stake 0");
+        require(user != address(0), "User cannot be zero address");
         _totalSupply = _totalSupply.add(amount);
         _balances[user] = _balances[user].add(amount);
         emit Staked(user, amount);
@@ -109,7 +122,9 @@ contract gDaiRewards is ReentrancyGuard {
 
     function withdraw(address user, uint256 amount) public onlyController updateReward(user) {
         require(amount > 0, "Cannot withdraw 0");
-        if(amount > _balances[user]) amount = _balances[user];
+        require(user != address(0), "User cannot be zero address");
+        require(_balances[user] >= amount, "Amount greater than balance");
+
         _totalSupply = _totalSupply.sub(amount);
         _balances[user] = _balances[user].sub(amount);
         emit Withdrawn(user, amount);
@@ -132,21 +147,15 @@ contract gDaiRewards is ReentrancyGuard {
     }
 
     function start() external updateReward(address(0)) {
-        require(block.timestamp >= startDate, "startDate has not yet been reached");
+        require(_getNow() >= startDate, "startDate has not yet been reached");
         require(!started, "Distribution has already started");
-        uint reward = rewardsToken.balanceOf(address(this));
+        uint256 reward = rewardsToken.balanceOf(address(this));
         require(reward > 0, "No tokens were sent for rewards");
         rewardRate = reward.div(rewardsDuration);
 
-        // Ensure the provided reward amount is not more than the balance in the contract.
-        // This keeps the reward rate in the right range, preventing overflows due to
-        // very high values of rewardRate in the earned and rewardsPerToken functions;
-        // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        require(rewardRate <= reward.div(rewardsDuration), "Provided reward too high");
-
-        lastUpdateTime = block.timestamp;
+        lastUpdateTime = _getNow();
         started = true;
-        periodFinish = block.timestamp.add(rewardsDuration);
+        periodFinish = _getNow().add(rewardsDuration);
         emit Started(reward);
     }
 
@@ -157,7 +166,7 @@ contract gDaiRewards is ReentrancyGuard {
         lastUpdateTime = lastTimeRewardApplicable();
         if (account != address(0)) {
             rewards[account] = earned(account);
-            userRewardPerTokenPaid[account] = rewardPerTokenStored;
+            userRewardPerToken[account] = rewardPerTokenStored;
         }
         _;
     }
@@ -173,4 +182,10 @@ contract gDaiRewards is ReentrancyGuard {
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, uint256 reward);
+
+    /* ========== INTERNALS ========== */
+
+    function _getNow() internal view returns (uint256) {
+        return block.timestamp;
+    }
 }

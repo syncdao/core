@@ -4,3 +4,9 @@ node_modules
 #Buidler files
 cache
 artifacts
+
+*.iml
+.idea/
+
+coverage.json
+coverage/
